@@ -50,54 +50,6 @@ namespace Mathematic_evaluation
                 }
             }
         }
-        static List<string> SplitCalc(string calc)
-        {
-            calc = calc.Replace(" ", "");
-            List<string> output = new List<string>();
-            string temp = "";
-            foreach (char c in calc)
-            {
-                if (numeric.Contains(c))
-                {
-                    temp += c;
-                }
-                else if (operators.Contains(c))
-                {
-                    if (temp.Length > 0)
-                    {
-                        double t;
-                        if (double.TryParse(temp, out t))
-                        {
-                            output.Add(temp);
-                            temp = "";
-                        }
-                        else
-                        {
-                            throw new SyntaxException("Unparsable number: " + temp);
-                        }
-                    }
-                    output.Add(c.ToString());
-                }
-                else
-                {
-                    throw new SyntaxException("Unrecognized character: " + c);
-                }
-            }
-            if (temp.Length > 0)
-            {
-                double t;
-                if (double.TryParse(temp, out t))
-                {
-                    output.Add(temp);
-                    temp = "";
-                }
-                else
-                {
-                    throw new SyntaxException("Unparsable number: " + temp);
-                }
-            }
-            return output;
-        }
         static List<MathToken> Tokenizer(string calc)
         {
             calc = calc.ToLower();
@@ -124,8 +76,16 @@ namespace Mathematic_evaluation
                 }
                 if (temp.Length > 0)
                 {
-                    result.Add(new FunctionToken(temp));
-                    temp = "";
+                    if (temp == "pi")
+                    {
+                        result.Add(new NumberToken(temp));
+                        temp = "";
+                    }
+                    else
+                    {
+                        result.Add(new FunctionToken(temp));
+                        temp = "";
+                    }
                 }
                 if (calc.Length == 0) break;
                 if (operators.Contains(calc[0]))
@@ -309,7 +269,11 @@ namespace Mathematic_evaluation
     {
         public NumberToken(string s) : base(s)
         {
-            if (!double.TryParse(s, out numberValue))
+            if (s == "pi")
+            {
+                numberValue = Math.PI;
+            }
+            else if (!double.TryParse(s, out numberValue))
             {
                 throw new ParseException("Unparseable number: " + s);
             }
