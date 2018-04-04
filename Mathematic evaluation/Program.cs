@@ -12,23 +12,34 @@ namespace Mathematic_evaluation
         static string operators = "()^*/+-";
         static void Main(string[] args)
         {
-            Console.WriteLine("Enter calculation:");
-            string calculation = Console.ReadLine();
-            try
+            while (true)
             {
-                List<string> split = SplitCalc(calculation);
-                List<string> RPN = ShuntingYard(split);
-                double result = SolveRPN(RPN);
-                Console.WriteLine("Result: "+result);
-            }
-            catch (SyntaxException e)
-            {
-                Console.WriteLine(e.Message);
+                Console.WriteLine("Enter calculation:");
+                string calculation = Console.ReadLine();
+                if (!string.IsNullOrWhiteSpace(calculation))
+                {
+                    try
+                    {
+                        List<string> split = SplitCalc(calculation);
+                        List<string> RPN = ShuntingYard(split);
+                        double result = SolveRPN(RPN);
+                        Console.WriteLine("Result: " + result);
+                    }
+                    catch (SyntaxException e)
+                    {
+                        Console.WriteLine(e.Message);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("No input.");
+                }
             }
             
         }
         static List<string> SplitCalc(string calc)
         {
+            calc = calc.Replace(" ", "");
             List<string> output = new List<string>();
             string temp = "";
             foreach (char c in calc)
@@ -155,6 +166,10 @@ namespace Mathematic_evaluation
                 {
                     output.Add(s);
                 }
+            }
+            if (output.Count == 0)
+            {
+                throw new SyntaxException("Nothing but parentheses?");
             }
             return output;
         }
