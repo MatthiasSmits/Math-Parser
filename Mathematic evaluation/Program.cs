@@ -26,6 +26,9 @@ namespace Mathematic_evaluation
                 {
                     try
                     {
+                        calculation = calculation.ToLower();
+                        calculation = calculation.Replace(" ", "");
+                        calculation = MinusToPlusNegative(calculation);
                         List<MathToken> split = Tokenizer(calculation);
                         List<MathToken> RPN = ShuntingYard(split);
                         double result = SolveRPN(RPN);
@@ -50,15 +53,27 @@ namespace Mathematic_evaluation
                 }
             }
         }
-        static List<MathToken> Tokenizer(string calc)
+        static string MinusToPlusNegative(string calc) //changes every binary operation "minus" to a binary "plus" and a unary "negative" to deal with the ambiguity of "-"
         {
-            calc = calc.ToLower();
-            calc = calc.Replace(" ", "");
+            string result = "";
+            result += calc[0];
+            for (int i = 1; i < calc.Length; i++)
+            {
+                if ( calc[i] == '-' & (result.Last() == ')' | numeric.Contains(result.Last()))) //when reading a "-" and the preceding symbol indicates an operand (number or subexpression)
+                {
+                    result += '+';
+                }
+                result += calc[i];
+            }
+            return result;
+        }
+        static List<MathToken> Tokenizer(string calc) //reads through a string, combining every consecutive symbol of one type into one token, then adds the token to the list
+        {
             List<MathToken> result = new List<MathToken>();
             while (true)
             {
                 string temp = "";
-                while (calc.Length > 0 && numeric.Contains(calc[0]))
+                while (calc.Length > 0 && numeric.Contains(calc[0])) //this actually accepts too much (more than one decimal point), but the NumberToken deals with the actual parsing
                 {
                     temp += calc[0];
                     calc = calc.Substring(1);
@@ -69,34 +84,40 @@ namespace Mathematic_evaluation
                     temp = "";
                 }
                 if (calc.Length == 0) break;
-                while (calc.Length > 0 && alphabetic.Contains(calc[0]))
+                while (calc.Length > 0 && alphabetic.Contains(calc[0])) //reading function words
                 {
                     temp += calc[0];
                     calc = calc.Substring(1);
                 }
                 if (temp.Length > 0)
                 {
-                    if (temp == "pi")
+                    if (temp == "pi")           //special case for the constant pi (probably shouldn't try to use "sqrtpi" without brackets)
                     {
                         result.Add(new NumberToken(temp));
-                        temp = "";
                     }
                     else
                     {
                         result.Add(new FunctionToken(temp));
-                        temp = "";
                     }
+                    temp = "";
                 }
                 if (calc.Length == 0) break;
-                if (operators.Contains(calc[0]))
+                if (operators.Contains(calc[0])) //operators are single symbols
                 {
                     temp += calc[0];
-                    result.Add(new OperatorToken(temp));
+                    if (temp == "-")
+                    {
+                        result.Add(new FunctionToken(temp)); //special case, because I treat minus as a unary operator (this actually results in 5---5 being accepted as 5+-(-(-(5))), which is slightly weird)
+                    }
+                    else
+                    {
+                        result.Add(new OperatorToken(temp));
+                    }
                     temp = "";
                     calc = calc.Substring(1);
                 }
                 if (calc.Length == 0) break;
-                if (brackets.Contains(calc[0]))
+                if (brackets.Contains(calc[0])) //brackets are operators in some interpretation, but they need a different treatment, so a different identity.
                 {
                     temp += calc[0];
                     result.Add(new BracketToken(temp));
@@ -104,14 +125,14 @@ namespace Mathematic_evaluation
                     calc = calc.Substring(1);
                 }
                 if (calc.Length == 0) break;
-                if (!(brackets + operators + numeric + alphabetic).Contains(calc[0]))
+                if (!(brackets + operators + numeric + alphabetic).Contains(calc[0])) //if the tokenizer encounters a symbol that doesn't fit any of the above
                 {
                     throw new ParseException("Unrecognized character: "+ calc[0]);
                 }
             }
             return result;
         }
-        static List<MathToken> ShuntingYard(List<MathToken> calc)
+        static List<MathToken> ShuntingYard(List<MathToken> calc) //algorithm by Edsger Dijkstra to turn (possibly) ambiguous infix notation into (much easier to parse) reverse Polish notation
         {
             List<MathToken> output = new List<MathToken>();
             Stack<MathToken> stack = new Stack<MathToken>();
@@ -172,21 +193,21 @@ namespace Mathematic_evaluation
                                 output.Add(stack.Pop());
                             }
                         }
-                        catch (InvalidOperationException)
+                        catch (InvalidOperationException) //if it runs out of stack without finding an opening bracket
                         {
                             throw new SyntaxException("Mismatched parentheses");
                         }
                     }
                 }
-                else
+                else //this should probably go, since every type of token is accounted for
                 {
                     throw new SyntaxException("Something went horribly wrong");
                 }
             }
-            while (stack.Count > 0)
+            while (stack.Count > 0) //when all input is read, move the stack to the output
             {
                 MathToken t = stack.Pop();
-                if (t.GetType() == typeof(BracketToken))
+                if (t.GetType() == typeof(BracketToken)) //if it finds an opening bracket that was never closed
                 {
                     BracketToken b = (BracketToken) t;
                     if(b.IsLeft)
@@ -197,21 +218,21 @@ namespace Mathematic_evaluation
                     output.Add(t);
                 }
             }
-            if (output.Count == 0)
+            if (output.Count == 0) //it looks like acceptable input, but once you take the brackets out, you're left with nothing
             {
                 throw new SyntaxException("Nothing but parentheses?");
             }
             return output;
         }
-        static double SolveRPN(List<MathToken> RPN)
-        {
+        static double SolveRPN(List<MathToken> RPN)     //pushes numbers onto the stack, resolves functions and operators with those numbers, pushes the result back on, and so forth,
+        {                                               // until there's (hopefully) one number and no operators left
             Stack<double> operands = new Stack<double>();
             foreach (MathToken t in RPN)
             {
                 if (t.GetType() == typeof(OperatorToken))
                 {
                     OperatorToken o = (OperatorToken)t;
-                    if (operands.Count >= 2)
+                    if (operands.Count >= 2) //binary operators need at least 2 numbers
                     {
                         double b = operands.Pop();
                         double a = operands.Pop();
@@ -220,7 +241,7 @@ namespace Mathematic_evaluation
                     }
                     else
                     {
-                        throw new SyntaxException("Syntax error: not enough operands");
+                        throw new SyntaxException("Not enough operands");
                     }
                 }
                 else if (t.GetType() == typeof(NumberToken))
@@ -231,7 +252,7 @@ namespace Mathematic_evaluation
                 else if (t.GetType() == typeof(FunctionToken))
                 {
                     FunctionToken f = (FunctionToken)t;
-                    if (operands.Count >= 1)
+                    if (operands.Count >= 1) //this only rules out an empty stack
                     {
                         double a = operands.Pop();
                         double result = f.Function(a);
@@ -239,13 +260,13 @@ namespace Mathematic_evaluation
                     }
                     else
                     {
-                        throw new SyntaxException("Syntax error: not enough operands");
+                        throw new SyntaxException("Not enough operands");
                     }
                 }
             }
-            if (operands.Count > 1)
+            if (operands.Count > 1) //if we're left with more than one number and no operators
             {
-                throw new SyntaxException("Syntax error: not enough operators");
+                throw new SyntaxException("Not enough operators");
             }
             else
             {
@@ -253,7 +274,7 @@ namespace Mathematic_evaluation
             }
         }
     }
-    public class MathToken
+    public class MathToken //this is the base class. It only stores the source string, but that has no current function. I used it for some diagnostics to print the RPN.
     {
         public MathToken()
         {
@@ -269,7 +290,7 @@ namespace Mathematic_evaluation
     {
         public NumberToken(string s) : base(s)
         {
-            if (s == "pi")
+            if (s == "pi") //special case for the letter combination pi
             {
                 numberValue = Math.PI;
             }
@@ -284,7 +305,7 @@ namespace Mathematic_evaluation
             get { return numberValue; }
         }
     }
-    public class FunctionToken : MathToken
+    public class FunctionToken : MathToken //a class for unary operators
     {
         public FunctionToken(string s) : base(s)
         {
@@ -302,6 +323,9 @@ namespace Mathematic_evaluation
                 case "sqrt":
                     Function = Math.Sqrt;
                     break;
+                case "-":
+                    Function = delegate (double x) { return -x; };
+                    break;
                 default:
                     throw new ParseException("Unrecognized function: " + s);
             }
@@ -309,7 +333,7 @@ namespace Mathematic_evaluation
         public delegate double Del(double x);
         public Del Function;
     }
-    public class OperatorToken : MathToken
+    public class OperatorToken : MathToken //a class for binary operators. I've thought about adding a property for higher arity, but there aren't any such operators in common use (especially with infix notation).
     {
         public OperatorToken(string s) : base(s)
         {
@@ -326,10 +350,6 @@ namespace Mathematic_evaluation
                 case "*":
                     Operator = delegate (double x, double y) { return x * y; };
                     precedence = 1;
-                    break;
-                case "-":
-                    Operator = delegate (double x, double y) { return x - y; };
-                    precedence = 0;
                     break;
                 case "+":
                     Operator = delegate (double x, double y) { return x + y; };
@@ -354,7 +374,7 @@ namespace Mathematic_evaluation
         {
             if (s == "(") isLeft = true;
             else if (s == ")") isLeft = false;
-            else throw new ParseException("Unrecognized bracket: " + s);
+            else throw new ParseException("Unrecognized bracket: " + s); //does this ever happen? No, but you should be prepared for anything.
         }
         private bool isLeft;
         public bool IsLeft
